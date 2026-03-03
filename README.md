@@ -15,6 +15,10 @@
   </a>
 </p>
 
+<p align="center">
+  <img src="https://raw.githubusercontent.com/3astbeast/RedTail-EMA-Cloud/refs/heads/main/Screenshot%202026-03-03%20133013.png" width="800" alt="RedTail EMA Cloud Screenshot"/>
+</p>
+
 ---
 
 ## Overview

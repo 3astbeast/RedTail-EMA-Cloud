@@ -19,37 +19,49 @@ using NinjaTrader.Data;
 using NinjaTrader.NinjaScript;
 using NinjaTrader.Core.FloatingPoint;
 using NinjaTrader.NinjaScript.DrawingTools;
+using SharpDX;
+using SharpDX.Direct2D1;
 #endregion
 
-//This code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
-//Converted from TradingView Pine Script - HawkEye EMA Cloud
-//NinjaTrader version: RedTail EMA Cloud
+namespace NinjaTrader.NinjaScript
+{
+	public enum MATypeOption
+	{
+		EMA,
+		SMA
+	}
+}
 
 namespace NinjaTrader.NinjaScript.Indicators
 {
 	public class RedTailEMACloud : Indicator
 	{
-		private EMA ema1Short;
-		private EMA ema1Long;
-		private EMA ema2Short;
-		private EMA ema2Long;
-		private EMA ema3Short;
-		private EMA ema3Long;
-		private EMA ema4Short;
-		private EMA ema4Long;
-		private EMA ema5Short;
-		private EMA ema5Long;
+		private EMA ema1Short, ema1Long;
+		private EMA ema2Short, ema2Long;
+		private EMA ema3Short, ema3Long;
+		private EMA ema4Short, ema4Long;
+		private EMA ema5Short, ema5Long;
 
-		private SMA sma1Short;
-		private SMA sma1Long;
-		private SMA sma2Short;
-		private SMA sma2Long;
-		private SMA sma3Short;
-		private SMA sma3Long;
-		private SMA sma4Short;
-		private SMA sma4Long;
-		private SMA sma5Short;
-		private SMA sma5Long;
+		private SMA sma1Short, sma1Long;
+		private SMA sma2Short, sma2Long;
+		private SMA sma3Short, sma3Long;
+		private SMA sma4Short, sma4Long;
+		private SMA sma5Short, sma5Long;
+
+		private Series<double> ma1ShortSeries, ma1LongSeries;
+		private Series<double> ma2ShortSeries, ma2LongSeries;
+		private Series<double> ma3ShortSeries, ma3LongSeries;
+		private Series<double> ma4ShortSeries, ma4LongSeries;
+		private Series<double> ma5ShortSeries, ma5LongSeries;
+
+		private SharpDX.Direct2D1.Brush dxCloud1Bull, dxCloud1Bear;
+		private SharpDX.Direct2D1.Brush dxCloud2Bull, dxCloud2Bear;
+		private SharpDX.Direct2D1.Brush dxCloud3Bull, dxCloud3Bear;
+		private SharpDX.Direct2D1.Brush dxCloud4Bull, dxCloud4Bear;
+		private SharpDX.Direct2D1.Brush dxCloud5Bull, dxCloud5Bear;
+		private SharpDX.Direct2D1.Brush dxShortRising, dxShortFalling;
+		private SharpDX.Direct2D1.Brush dxLongRising, dxLongFalling;
+		private bool brushesNeedUpdate = true;
 
 		protected override void OnStateChange()
 		{
@@ -63,14 +75,12 @@ namespace NinjaTrader.NinjaScript.Indicators
 				DrawOnPricePanel							= true;
 				DrawHorizontalGridLines						= true;
 				DrawVerticalGridLines						= true;
-				PaintPriceMarkers							= true;
+				PaintPriceMarkers							= false;
 				ScaleJustification							= NinjaTrader.Gui.Chart.ScaleJustification.Right;
 				IsSuspendedWhileInactive					= true;
 
-				// MA Type
 				MAType										= MATypeOption.EMA;
 
-				// EMA Lengths
 				ShortEMA1Length								= 8;
 				LongEMA1Length								= 9;
 				ShortEMA2Length								= 5;
@@ -82,7 +92,6 @@ namespace NinjaTrader.NinjaScript.Indicators
 				ShortEMA5Length								= 180;
 				LongEMA5Length								= 200;
 
-				// Display Options
 				ShowLongAlerts								= false;
 				ShowShortAlerts								= false;
 				ShowLine									= false;
@@ -93,69 +102,65 @@ namespace NinjaTrader.NinjaScript.Indicators
 				ShowEMACloud5								= false;
 				EMACloudLeading								= 0;
 
-				// Cloud 1 Colors
 				Cloud1BullColor								= Brushes.DarkGreen;
 				Cloud1BearColor								= Brushes.DarkMagenta;
 				Cloud1Opacity								= 45;
 
-				// Cloud 2 Colors
 				Cloud2BullColor								= Brushes.LimeGreen;
 				Cloud2BearColor								= Brushes.Red;
 				Cloud2Opacity								= 65;
 
-				// Cloud 3 Colors
 				Cloud3BullColor								= Brushes.DodgerBlue;
 				Cloud3BearColor								= Brushes.Orange;
 				Cloud3Opacity								= 70;
 
-				// Cloud 4 Colors
 				Cloud4BullColor								= Brushes.Teal;
 				Cloud4BearColor								= Brushes.HotPink;
 				Cloud4Opacity								= 65;
 
-				// Cloud 5 Colors
 				Cloud5BullColor								= Brushes.Cyan;
 				Cloud5BearColor								= Brushes.OrangeRed;
 				Cloud5Opacity								= 65;
 
-				// EMA Line Colors
 				ShortEMARisingColor							= Brushes.Olive;
 				ShortEMAFallingColor						= Brushes.Maroon;
 				LongEMARisingColor							= Brushes.Green;
 				LongEMAFallingColor							= Brushes.Red;
 			}
-			else if (State == State.Configure)
-			{
-			}
 			else if (State == State.DataLoaded)
 			{
-				// Initialize EMAs or SMAs based on selection
+				// Use MaxValue as default so unset bars are easily detected
+				ma1ShortSeries = new Series<double>(this, MaximumBarsLookBack.Infinite);
+				ma1LongSeries  = new Series<double>(this, MaximumBarsLookBack.Infinite);
+				ma2ShortSeries = new Series<double>(this, MaximumBarsLookBack.Infinite);
+				ma2LongSeries  = new Series<double>(this, MaximumBarsLookBack.Infinite);
+				ma3ShortSeries = new Series<double>(this, MaximumBarsLookBack.Infinite);
+				ma3LongSeries  = new Series<double>(this, MaximumBarsLookBack.Infinite);
+				ma4ShortSeries = new Series<double>(this, MaximumBarsLookBack.Infinite);
+				ma4LongSeries  = new Series<double>(this, MaximumBarsLookBack.Infinite);
+				ma5ShortSeries = new Series<double>(this, MaximumBarsLookBack.Infinite);
+				ma5LongSeries  = new Series<double>(this, MaximumBarsLookBack.Infinite);
+
 				if (MAType == MATypeOption.EMA)
 				{
-					ema1Short = EMA(ShortEMA1Length);
-					ema1Long = EMA(LongEMA1Length);
-					ema2Short = EMA(ShortEMA2Length);
-					ema2Long = EMA(LongEMA2Length);
-					ema3Short = EMA(ShortEMA3Length);
-					ema3Long = EMA(LongEMA3Length);
-					ema4Short = EMA(ShortEMA4Length);
-					ema4Long = EMA(LongEMA4Length);
-					ema5Short = EMA(ShortEMA5Length);
-					ema5Long = EMA(LongEMA5Length);
+					ema1Short = EMA(ShortEMA1Length); ema1Long = EMA(LongEMA1Length);
+					ema2Short = EMA(ShortEMA2Length); ema2Long = EMA(LongEMA2Length);
+					ema3Short = EMA(ShortEMA3Length); ema3Long = EMA(LongEMA3Length);
+					ema4Short = EMA(ShortEMA4Length); ema4Long = EMA(LongEMA4Length);
+					ema5Short = EMA(ShortEMA5Length); ema5Long = EMA(LongEMA5Length);
 				}
 				else
 				{
-					sma1Short = SMA(ShortEMA1Length);
-					sma1Long = SMA(LongEMA1Length);
-					sma2Short = SMA(ShortEMA2Length);
-					sma2Long = SMA(LongEMA2Length);
-					sma3Short = SMA(ShortEMA3Length);
-					sma3Long = SMA(LongEMA3Length);
-					sma4Short = SMA(ShortEMA4Length);
-					sma4Long = SMA(LongEMA4Length);
-					sma5Short = SMA(ShortEMA5Length);
-					sma5Long = SMA(LongEMA5Length);
+					sma1Short = SMA(ShortEMA1Length); sma1Long = SMA(LongEMA1Length);
+					sma2Short = SMA(ShortEMA2Length); sma2Long = SMA(LongEMA2Length);
+					sma3Short = SMA(ShortEMA3Length); sma3Long = SMA(LongEMA3Length);
+					sma4Short = SMA(ShortEMA4Length); sma4Long = SMA(LongEMA4Length);
+					sma5Short = SMA(ShortEMA5Length); sma5Long = SMA(LongEMA5Length);
 				}
+			}
+			else if (State == State.Terminated)
+			{
+				DisposeBrushes();
 			}
 		}
 
@@ -164,111 +169,221 @@ namespace NinjaTrader.NinjaScript.Indicators
 			if (CurrentBar < Math.Max(Math.Max(Math.Max(LongEMA1Length, LongEMA2Length), Math.Max(LongEMA3Length, LongEMA4Length)), LongEMA5Length))
 				return;
 
-			// Get MA values based on type
-			double ma1Short = MAType == MATypeOption.EMA ? ema1Short[0] : sma1Short[0];
-			double ma1Long = MAType == MATypeOption.EMA ? ema1Long[0] : sma1Long[0];
-			double ma2Short = MAType == MATypeOption.EMA ? ema2Short[0] : sma2Short[0];
-			double ma2Long = MAType == MATypeOption.EMA ? ema2Long[0] : sma2Long[0];
-			double ma3Short = MAType == MATypeOption.EMA ? ema3Short[0] : sma3Short[0];
-			double ma3Long = MAType == MATypeOption.EMA ? ema3Long[0] : sma3Long[0];
-			double ma4Short = MAType == MATypeOption.EMA ? ema4Short[0] : sma4Short[0];
-			double ma4Long = MAType == MATypeOption.EMA ? ema4Long[0] : sma4Long[0];
-			double ma5Short = MAType == MATypeOption.EMA ? ema5Short[0] : sma5Short[0];
-			double ma5Long = MAType == MATypeOption.EMA ? ema5Long[0] : sma5Long[0];
+			bool isEMA = MAType == MATypeOption.EMA;
 
-			// Draw EMA Cloud 1
-			if (ShowEMACloud1)
-			{
-				Brush cloud1Color = ma1Short >= ma1Long ? GetBrushWithOpacity(Cloud1BullColor, Cloud1Opacity) : GetBrushWithOpacity(Cloud1BearColor, Cloud1Opacity);
-				Draw.Region(this, "Cloud1_" + CurrentBar, CurrentBar - EMACloudLeading, 0, ema1Short, ema1Long, null, cloud1Color, cloud1Color, 50);
-				
-				if (ShowLine && CurrentBar > 0)
-				{
-					Brush shortColor1 = ma1Short >= (MAType == MATypeOption.EMA ? ema1Short[1] : sma1Short[1]) ? ShortEMARisingColor : ShortEMAFallingColor;
-					Brush longColor1 = ma1Long >= (MAType == MATypeOption.EMA ? ema1Long[1] : sma1Long[1]) ? LongEMARisingColor : LongEMAFallingColor;
-					Draw.Line(this, "Short1_" + CurrentBar, false, 1, ma1Short, 0, ma1Short, shortColor1, DashStyleHelper.Solid, 1);
-					Draw.Line(this, "Long1_" + CurrentBar, false, 1, ma1Long, 0, ma1Long, longColor1, DashStyleHelper.Solid, 3);
-				}
-			}
-
-			// Draw EMA Cloud 2
-			if (ShowEMACloud2)
-			{
-				Brush cloud2Color = ma2Short >= ma2Long ? GetBrushWithOpacity(Cloud2BullColor, Cloud2Opacity) : GetBrushWithOpacity(Cloud2BearColor, Cloud2Opacity);
-				Draw.Region(this, "Cloud2_" + CurrentBar, CurrentBar - EMACloudLeading, 0, ema2Short, ema2Long, null, cloud2Color, cloud2Color, 50);
-				
-				if (ShowLine && CurrentBar > 0)
-				{
-					Brush shortColor2 = ma2Short >= (MAType == MATypeOption.EMA ? ema2Short[1] : sma2Short[1]) ? ShortEMARisingColor : ShortEMAFallingColor;
-					Brush longColor2 = ma2Long >= (MAType == MATypeOption.EMA ? ema2Long[1] : sma2Long[1]) ? LongEMARisingColor : LongEMAFallingColor;
-					Draw.Line(this, "Short2_" + CurrentBar, false, 1, ma2Short, 0, ma2Short, shortColor2, DashStyleHelper.Solid, 1);
-					Draw.Line(this, "Long2_" + CurrentBar, false, 1, ma2Long, 0, ma2Long, longColor2, DashStyleHelper.Solid, 3);
-				}
-			}
-
-			// Draw EMA Cloud 3
-			if (ShowEMACloud3)
-			{
-				Brush cloud3Color = ma3Short >= ma3Long ? GetBrushWithOpacity(Cloud3BullColor, Cloud3Opacity) : GetBrushWithOpacity(Cloud3BearColor, Cloud3Opacity);
-				Draw.Region(this, "Cloud3_" + CurrentBar, CurrentBar - EMACloudLeading, 0, ema3Short, ema3Long, null, cloud3Color, cloud3Color, 50);
-				
-				if (ShowLine && CurrentBar > 0)
-				{
-					Brush shortColor3 = ma3Short >= (MAType == MATypeOption.EMA ? ema3Short[1] : sma3Short[1]) ? ShortEMARisingColor : ShortEMAFallingColor;
-					Brush longColor3 = ma3Long >= (MAType == MATypeOption.EMA ? ema3Long[1] : sma3Long[1]) ? LongEMARisingColor : LongEMAFallingColor;
-					Draw.Line(this, "Short3_" + CurrentBar, false, 1, ma3Short, 0, ma3Short, shortColor3, DashStyleHelper.Solid, 1);
-					Draw.Line(this, "Long3_" + CurrentBar, false, 1, ma3Long, 0, ma3Long, longColor3, DashStyleHelper.Solid, 3);
-				}
-			}
-
-			// Draw EMA Cloud 4
-			if (ShowEMACloud4)
-			{
-				Brush cloud4Color = ma4Short >= ma4Long ? GetBrushWithOpacity(Cloud4BullColor, Cloud4Opacity) : GetBrushWithOpacity(Cloud4BearColor, Cloud4Opacity);
-				Draw.Region(this, "Cloud4_" + CurrentBar, CurrentBar - EMACloudLeading, 0, ema4Short, ema4Long, null, cloud4Color, cloud4Color, 50);
-				
-				if (ShowLine && CurrentBar > 0)
-				{
-					Brush shortColor4 = ma4Short >= (MAType == MATypeOption.EMA ? ema4Short[1] : sma4Short[1]) ? ShortEMARisingColor : ShortEMAFallingColor;
-					Brush longColor4 = ma4Long >= (MAType == MATypeOption.EMA ? ema4Long[1] : sma4Long[1]) ? LongEMARisingColor : LongEMAFallingColor;
-					Draw.Line(this, "Short4_" + CurrentBar, false, 1, ma4Short, 0, ma4Short, shortColor4, DashStyleHelper.Solid, 1);
-					Draw.Line(this, "Long4_" + CurrentBar, false, 1, ma4Long, 0, ma4Long, longColor4, DashStyleHelper.Solid, 3);
-				}
-			}
-
-			// Draw EMA Cloud 5
-			if (ShowEMACloud5)
-			{
-				Brush cloud5Color = ma5Short >= ma5Long ? GetBrushWithOpacity(Cloud5BullColor, Cloud5Opacity) : GetBrushWithOpacity(Cloud5BearColor, Cloud5Opacity);
-				Draw.Region(this, "Cloud5_" + CurrentBar, CurrentBar - EMACloudLeading, 0, ema5Short, ema5Long, null, cloud5Color, cloud5Color, 50);
-				
-				if (ShowLine && CurrentBar > 0)
-				{
-					Brush shortColor5 = ma5Short >= (MAType == MATypeOption.EMA ? ema5Short[1] : sma5Short[1]) ? ShortEMARisingColor : ShortEMAFallingColor;
-					Brush longColor5 = ma5Long >= (MAType == MATypeOption.EMA ? ema5Long[1] : sma5Long[1]) ? LongEMARisingColor : LongEMAFallingColor;
-					Draw.Line(this, "Short5_" + CurrentBar, false, 1, ma5Short, 0, ma5Short, shortColor5, DashStyleHelper.Solid, 1);
-					Draw.Line(this, "Long5_" + CurrentBar, false, 1, ma5Long, 0, ma5Long, longColor5, DashStyleHelper.Solid, 3);
-				}
-			}
+			ma1ShortSeries[0] = isEMA ? ema1Short[0] : sma1Short[0];
+			ma1LongSeries[0]  = isEMA ? ema1Long[0]  : sma1Long[0];
+			ma2ShortSeries[0] = isEMA ? ema2Short[0] : sma2Short[0];
+			ma2LongSeries[0]  = isEMA ? ema2Long[0]  : sma2Long[0];
+			ma3ShortSeries[0] = isEMA ? ema3Short[0] : sma3Short[0];
+			ma3LongSeries[0]  = isEMA ? ema3Long[0]  : sma3Long[0];
+			ma4ShortSeries[0] = isEMA ? ema4Short[0] : sma4Short[0];
+			ma4LongSeries[0]  = isEMA ? ema4Long[0]  : sma4Long[0];
+			ma5ShortSeries[0] = isEMA ? ema5Short[0] : sma5Short[0];
+			ma5LongSeries[0]  = isEMA ? ema5Long[0]  : sma5Long[0];
 		}
 
-		private Brush GetBrushWithOpacity(Brush brush, int opacityPercent)
+		private bool IsValidValue(double v)
 		{
-			if (brush == null)
-				return Brushes.Transparent;
+			return v != 0 && !double.IsNaN(v) && !double.IsInfinity(v);
+		}
 
-			SolidColorBrush solidBrush = brush as SolidColorBrush;
-			if (solidBrush != null)
+		#region SharpDX Rendering
+
+		private SharpDX.Direct2D1.Brush CreateDXBrush(SharpDX.Direct2D1.RenderTarget rt, System.Windows.Media.Brush wmBrush, float alpha)
+		{
+			System.Windows.Media.SolidColorBrush scb = wmBrush as System.Windows.Media.SolidColorBrush;
+			if (scb == null) return new SharpDX.Direct2D1.SolidColorBrush(rt, new SharpDX.Color(128, 128, 128, 128));
+			return new SharpDX.Direct2D1.SolidColorBrush(rt, new SharpDX.Color(scb.Color.R, scb.Color.G, scb.Color.B, (byte)(alpha * 255)));
+		}
+
+		private void DisposeBrushes()
+		{
+			if (dxCloud1Bull != null) { dxCloud1Bull.Dispose(); dxCloud1Bull = null; }
+			if (dxCloud1Bear != null) { dxCloud1Bear.Dispose(); dxCloud1Bear = null; }
+			if (dxCloud2Bull != null) { dxCloud2Bull.Dispose(); dxCloud2Bull = null; }
+			if (dxCloud2Bear != null) { dxCloud2Bear.Dispose(); dxCloud2Bear = null; }
+			if (dxCloud3Bull != null) { dxCloud3Bull.Dispose(); dxCloud3Bull = null; }
+			if (dxCloud3Bear != null) { dxCloud3Bear.Dispose(); dxCloud3Bear = null; }
+			if (dxCloud4Bull != null) { dxCloud4Bull.Dispose(); dxCloud4Bull = null; }
+			if (dxCloud4Bear != null) { dxCloud4Bear.Dispose(); dxCloud4Bear = null; }
+			if (dxCloud5Bull != null) { dxCloud5Bull.Dispose(); dxCloud5Bull = null; }
+			if (dxCloud5Bear != null) { dxCloud5Bear.Dispose(); dxCloud5Bear = null; }
+			if (dxShortRising  != null) { dxShortRising.Dispose();  dxShortRising  = null; }
+			if (dxShortFalling != null) { dxShortFalling.Dispose(); dxShortFalling = null; }
+			if (dxLongRising   != null) { dxLongRising.Dispose();   dxLongRising   = null; }
+			if (dxLongFalling  != null) { dxLongFalling.Dispose();  dxLongFalling  = null; }
+		}
+
+		public override void OnRenderTargetChanged()
+		{
+			DisposeBrushes();
+			brushesNeedUpdate = true;
+		}
+
+		private void EnsureBrushes(SharpDX.Direct2D1.RenderTarget rt)
+		{
+			if (!brushesNeedUpdate) return;
+			DisposeBrushes();
+
+			dxCloud1Bull = CreateDXBrush(rt, Cloud1BullColor, (100 - Cloud1Opacity) / 100f);
+			dxCloud1Bear = CreateDXBrush(rt, Cloud1BearColor, (100 - Cloud1Opacity) / 100f);
+			dxCloud2Bull = CreateDXBrush(rt, Cloud2BullColor, (100 - Cloud2Opacity) / 100f);
+			dxCloud2Bear = CreateDXBrush(rt, Cloud2BearColor, (100 - Cloud2Opacity) / 100f);
+			dxCloud3Bull = CreateDXBrush(rt, Cloud3BullColor, (100 - Cloud3Opacity) / 100f);
+			dxCloud3Bear = CreateDXBrush(rt, Cloud3BearColor, (100 - Cloud3Opacity) / 100f);
+			dxCloud4Bull = CreateDXBrush(rt, Cloud4BullColor, (100 - Cloud4Opacity) / 100f);
+			dxCloud4Bear = CreateDXBrush(rt, Cloud4BearColor, (100 - Cloud4Opacity) / 100f);
+			dxCloud5Bull = CreateDXBrush(rt, Cloud5BullColor, (100 - Cloud5Opacity) / 100f);
+			dxCloud5Bear = CreateDXBrush(rt, Cloud5BearColor, (100 - Cloud5Opacity) / 100f);
+
+			dxShortRising  = CreateDXBrush(rt, ShortEMARisingColor,  1f);
+			dxShortFalling = CreateDXBrush(rt, ShortEMAFallingColor, 1f);
+			dxLongRising   = CreateDXBrush(rt, LongEMARisingColor,   1f);
+			dxLongFalling  = CreateDXBrush(rt, LongEMAFallingColor,  1f);
+
+			brushesNeedUpdate = false;
+		}
+
+		protected override void OnRender(ChartControl chartControl, ChartScale chartScale)
+		{
+			if (Bars == null || ChartBars == null) return;
+
+			SharpDX.Direct2D1.RenderTarget rt = RenderTarget;
+			if (rt == null) return;
+
+			EnsureBrushes(rt);
+
+			int firstIdx = ChartBars.FromIndex;
+			int lastIdx  = ChartBars.ToIndex;
+
+			if (ShowEMACloud1) RenderCloud(rt, chartControl, chartScale, ma1ShortSeries, ma1LongSeries, dxCloud1Bull, dxCloud1Bear, firstIdx, lastIdx);
+			if (ShowEMACloud2) RenderCloud(rt, chartControl, chartScale, ma2ShortSeries, ma2LongSeries, dxCloud2Bull, dxCloud2Bear, firstIdx, lastIdx);
+			if (ShowEMACloud3) RenderCloud(rt, chartControl, chartScale, ma3ShortSeries, ma3LongSeries, dxCloud3Bull, dxCloud3Bear, firstIdx, lastIdx);
+			if (ShowEMACloud4) RenderCloud(rt, chartControl, chartScale, ma4ShortSeries, ma4LongSeries, dxCloud4Bull, dxCloud4Bear, firstIdx, lastIdx);
+			if (ShowEMACloud5) RenderCloud(rt, chartControl, chartScale, ma5ShortSeries, ma5LongSeries, dxCloud5Bull, dxCloud5Bear, firstIdx, lastIdx);
+
+			if (ShowLine)
 			{
-				byte alpha = (byte)(255 * (100 - opacityPercent) / 100.0);
-				Color color = Color.FromArgb(alpha, solidBrush.Color.R, solidBrush.Color.G, solidBrush.Color.B);
-				Brush newBrush = new SolidColorBrush(color);
-				newBrush.Freeze();
-				return newBrush;
+				if (ShowEMACloud1) RenderMALines(rt, chartControl, chartScale, ma1ShortSeries, ma1LongSeries, firstIdx, lastIdx);
+				if (ShowEMACloud2) RenderMALines(rt, chartControl, chartScale, ma2ShortSeries, ma2LongSeries, firstIdx, lastIdx);
+				if (ShowEMACloud3) RenderMALines(rt, chartControl, chartScale, ma3ShortSeries, ma3LongSeries, firstIdx, lastIdx);
+				if (ShowEMACloud4) RenderMALines(rt, chartControl, chartScale, ma4ShortSeries, ma4LongSeries, firstIdx, lastIdx);
+				if (ShowEMACloud5) RenderMALines(rt, chartControl, chartScale, ma5ShortSeries, ma5LongSeries, firstIdx, lastIdx);
+			}
+		}
+
+		private void RenderCloud(SharpDX.Direct2D1.RenderTarget rt, ChartControl chartControl, ChartScale chartScale,
+			Series<double> shortSeries, Series<double> longSeries,
+			SharpDX.Direct2D1.Brush bullBrush, SharpDX.Direct2D1.Brush bearBrush,
+			int firstIdx, int lastIdx)
+		{
+			int barCount = Bars.Count;
+			if (barCount < 2) return;
+
+			// Collect all valid bar data points for the visible range
+			// Then batch consecutive same-direction segments into single path geometries
+			List<float> xCoords = new List<float>(lastIdx - firstIdx + 2);
+			List<float> yShort  = new List<float>(lastIdx - firstIdx + 2);
+			List<float> yLong   = new List<float>(lastIdx - firstIdx + 2);
+			List<bool>  isBull  = new List<bool>(lastIdx - firstIdx + 2);
+
+			for (int idx = firstIdx; idx <= lastIdx; idx++)
+			{
+				if (idx < 0 || idx >= barCount) continue;
+
+				double sVal = shortSeries.GetValueAt(idx);
+				double lVal = longSeries.GetValueAt(idx);
+
+				if (!IsValidValue(sVal) || !IsValidValue(lVal)) continue;
+
+				xCoords.Add(chartControl.GetXByBarIndex(ChartBars, idx));
+				yShort.Add(chartScale.GetYByValue(sVal));
+				yLong.Add(chartScale.GetYByValue(lVal));
+				isBull.Add(sVal >= lVal);
 			}
 
-			return brush;
+			if (xCoords.Count < 2) return;
+
+			// Batch consecutive same-direction segments into single geometries
+			int startRun = 0;
+			while (startRun < xCoords.Count - 1)
+			{
+				bool currentBull = isBull[startRun];
+				int endRun = startRun + 1;
+
+				// Extend run while direction stays the same
+				while (endRun < xCoords.Count && isBull[endRun] == currentBull)
+					endRun++;
+
+				// Draw this run as a single filled polygon
+				using (SharpDX.Direct2D1.PathGeometry geo = new SharpDX.Direct2D1.PathGeometry(rt.Factory))
+				{
+					using (GeometrySink sink = geo.Open())
+					{
+						// Forward along the short MA
+						sink.BeginFigure(new Vector2(xCoords[startRun], yShort[startRun]), FigureBegin.Filled);
+						for (int i = startRun + 1; i < endRun; i++)
+							sink.AddLine(new Vector2(xCoords[i], yShort[i]));
+
+						// Backward along the long MA
+						for (int i = endRun - 1; i >= startRun; i--)
+							sink.AddLine(new Vector2(xCoords[i], yLong[i]));
+
+						sink.EndFigure(FigureEnd.Closed);
+						sink.Close();
+					}
+					rt.FillGeometry(geo, currentBull ? bullBrush : bearBrush);
+				}
+
+				startRun = endRun;
+			}
 		}
+
+		private void RenderMALines(SharpDX.Direct2D1.RenderTarget rt, ChartControl chartControl, ChartScale chartScale,
+			Series<double> shortSeries, Series<double> longSeries, int firstIdx, int lastIdx)
+		{
+			int barCount = Bars.Count;
+
+			float prevX = 0, prevYS = 0, prevYL = 0;
+			double prevSVal = 0, prevLVal = 0;
+			bool hasPrev = false;
+
+			for (int idx = firstIdx; idx <= lastIdx; idx++)
+			{
+				if (idx < 0 || idx >= barCount) continue;
+
+				double sVal = shortSeries.GetValueAt(idx);
+				double lVal = longSeries.GetValueAt(idx);
+
+				if (!IsValidValue(sVal) || !IsValidValue(lVal))
+				{
+					hasPrev = false;
+					continue;
+				}
+
+				float x  = chartControl.GetXByBarIndex(ChartBars, idx);
+				float yS = chartScale.GetYByValue(sVal);
+				float yL = chartScale.GetYByValue(lVal);
+
+				if (hasPrev)
+				{
+					// Short MA line
+					rt.DrawLine(new Vector2(prevX, prevYS), new Vector2(x, yS),
+						sVal >= prevSVal ? dxShortRising : dxShortFalling, 1f);
+
+					// Long MA line
+					rt.DrawLine(new Vector2(prevX, prevYL), new Vector2(x, yL),
+						lVal >= prevLVal ? dxLongRising : dxLongFalling, 3f);
+				}
+
+				prevX = x; prevYS = yS; prevYL = yL;
+				prevSVal = sVal; prevLVal = lVal;
+				hasPrev = true;
+			}
+		}
+
+		#endregion
 
 		#region Properties
 
@@ -385,7 +500,7 @@ namespace NinjaTrader.NinjaScript.Indicators
 
 		[XmlIgnore]
 		[Display(Name="Cloud 1 - Bullish Color", Description="Cloud 1 Bullish Color", Order=1, GroupName="Cloud 1 Colors")]
-		public Brush Cloud1BullColor
+		public System.Windows.Media.Brush Cloud1BullColor
 		{ get; set; }
 
 		[Browsable(false)]
@@ -397,7 +512,7 @@ namespace NinjaTrader.NinjaScript.Indicators
 
 		[XmlIgnore]
 		[Display(Name="Cloud 1 - Bearish Color", Description="Cloud 1 Bearish Color", Order=2, GroupName="Cloud 1 Colors")]
-		public Brush Cloud1BearColor
+		public System.Windows.Media.Brush Cloud1BearColor
 		{ get; set; }
 
 		[Browsable(false)]
@@ -415,7 +530,7 @@ namespace NinjaTrader.NinjaScript.Indicators
 
 		[XmlIgnore]
 		[Display(Name="Cloud 2 - Bullish Color", Description="Cloud 2 Bullish Color", Order=1, GroupName="Cloud 2 Colors")]
-		public Brush Cloud2BullColor
+		public System.Windows.Media.Brush Cloud2BullColor
 		{ get; set; }
 
 		[Browsable(false)]
@@ -427,7 +542,7 @@ namespace NinjaTrader.NinjaScript.Indicators
 
 		[XmlIgnore]
 		[Display(Name="Cloud 2 - Bearish Color", Description="Cloud 2 Bearish Color", Order=2, GroupName="Cloud 2 Colors")]
-		public Brush Cloud2BearColor
+		public System.Windows.Media.Brush Cloud2BearColor
 		{ get; set; }
 
 		[Browsable(false)]
@@ -445,7 +560,7 @@ namespace NinjaTrader.NinjaScript.Indicators
 
 		[XmlIgnore]
 		[Display(Name="Cloud 3 - Bullish Color", Description="Cloud 3 Bullish Color", Order=1, GroupName="Cloud 3 Colors")]
-		public Brush Cloud3BullColor
+		public System.Windows.Media.Brush Cloud3BullColor
 		{ get; set; }
 
 		[Browsable(false)]
@@ -457,7 +572,7 @@ namespace NinjaTrader.NinjaScript.Indicators
 
 		[XmlIgnore]
 		[Display(Name="Cloud 3 - Bearish Color", Description="Cloud 3 Bearish Color", Order=2, GroupName="Cloud 3 Colors")]
-		public Brush Cloud3BearColor
+		public System.Windows.Media.Brush Cloud3BearColor
 		{ get; set; }
 
 		[Browsable(false)]
@@ -475,7 +590,7 @@ namespace NinjaTrader.NinjaScript.Indicators
 
 		[XmlIgnore]
 		[Display(Name="Cloud 4 - Bullish Color", Description="Cloud 4 Bullish Color", Order=1, GroupName="Cloud 4 Colors")]
-		public Brush Cloud4BullColor
+		public System.Windows.Media.Brush Cloud4BullColor
 		{ get; set; }
 
 		[Browsable(false)]
@@ -487,7 +602,7 @@ namespace NinjaTrader.NinjaScript.Indicators
 
 		[XmlIgnore]
 		[Display(Name="Cloud 4 - Bearish Color", Description="Cloud 4 Bearish Color", Order=2, GroupName="Cloud 4 Colors")]
-		public Brush Cloud4BearColor
+		public System.Windows.Media.Brush Cloud4BearColor
 		{ get; set; }
 
 		[Browsable(false)]
@@ -505,7 +620,7 @@ namespace NinjaTrader.NinjaScript.Indicators
 
 		[XmlIgnore]
 		[Display(Name="Cloud 5 - Bullish Color", Description="Cloud 5 Bullish Color", Order=1, GroupName="Cloud 5 Colors")]
-		public Brush Cloud5BullColor
+		public System.Windows.Media.Brush Cloud5BullColor
 		{ get; set; }
 
 		[Browsable(false)]
@@ -517,7 +632,7 @@ namespace NinjaTrader.NinjaScript.Indicators
 
 		[XmlIgnore]
 		[Display(Name="Cloud 5 - Bearish Color", Description="Cloud 5 Bearish Color", Order=2, GroupName="Cloud 5 Colors")]
-		public Brush Cloud5BearColor
+		public System.Windows.Media.Brush Cloud5BearColor
 		{ get; set; }
 
 		[Browsable(false)]
@@ -535,7 +650,7 @@ namespace NinjaTrader.NinjaScript.Indicators
 
 		[XmlIgnore]
 		[Display(Name="Short EMA - Rising Color", Description="Short EMA Rising Color", Order=1, GroupName="EMA Line Colors")]
-		public Brush ShortEMARisingColor
+		public System.Windows.Media.Brush ShortEMARisingColor
 		{ get; set; }
 
 		[Browsable(false)]
@@ -547,7 +662,7 @@ namespace NinjaTrader.NinjaScript.Indicators
 
 		[XmlIgnore]
 		[Display(Name="Short EMA - Falling Color", Description="Short EMA Falling Color", Order=2, GroupName="EMA Line Colors")]
-		public Brush ShortEMAFallingColor
+		public System.Windows.Media.Brush ShortEMAFallingColor
 		{ get; set; }
 
 		[Browsable(false)]
@@ -559,7 +674,7 @@ namespace NinjaTrader.NinjaScript.Indicators
 
 		[XmlIgnore]
 		[Display(Name="Long EMA - Rising Color", Description="Long EMA Rising Color", Order=3, GroupName="EMA Line Colors")]
-		public Brush LongEMARisingColor
+		public System.Windows.Media.Brush LongEMARisingColor
 		{ get; set; }
 
 		[Browsable(false)]
@@ -571,7 +686,7 @@ namespace NinjaTrader.NinjaScript.Indicators
 
 		[XmlIgnore]
 		[Display(Name="Long EMA - Falling Color", Description="Long EMA Falling Color", Order=4, GroupName="EMA Line Colors")]
-		public Brush LongEMAFallingColor
+		public System.Windows.Media.Brush LongEMAFallingColor
 		{ get; set; }
 
 		[Browsable(false)]
@@ -582,12 +697,6 @@ namespace NinjaTrader.NinjaScript.Indicators
 		}
 
 		#endregion
-	}
-
-	public enum MATypeOption
-	{
-		EMA,
-		SMA
 	}
 }
 
